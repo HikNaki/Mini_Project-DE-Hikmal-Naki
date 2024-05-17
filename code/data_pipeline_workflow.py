@@ -1,4 +1,5 @@
 import os
+import boto3
 import asyncio
 import nbformat
 import requests
@@ -78,22 +79,40 @@ def notebook_etl():
 # Load To Cloud Storage
 @task(retries=3, retry_delay_seconds=60, task_run_name="Load to Cloud Storage")
 def load_to_storage():
+    
+    load_dotenv()
+    file_path = 'data_final'
+    file_name = 'world_data.csv'
+    object_name = 'mini-project-de/world_data.csv'
+    bucket = 'de-cloud-15'
+    key = os.getenv("ACCOUNT_KEY")
+    storage_bucket = os.getenv("FIREBASE_STORAGE")
+    aws_access_key = os.getenv('AWS_ACCESS_KEY')
+    aws_secret_access_key = os.getenv('AWS_SECRET_KEY')
+    
     try:
-        load_dotenv()
-        key = os.getenv("ACCOUNT_KEY")
+        s3 = boto3.client(
+        's3',
+        aws_access_key_id= aws_access_key,
+        aws_secret_access_key= aws_secret_access_key
+        )
+        file = 'data_final/world_data.csv'
+        s3.upload_file(file, bucket, object_name)
+        logger.info("Data has been successfully loaded to AWS S3")
+    except Exception as e:
+        logger.error(f"An error occured: {e}")
+        raise
         
-        storage_bucket = os.getenv("FIREBASE_STORAGE")
+    try:
         if not firebase_admin._apps:
             cred = credentials.Certificate(key)
             firebase_admin.initialize_app(cred, {"storageBucket": storage_bucket})
         
         bucket = storage.bucket()
         current_date = datetime.now().strftime("%d-%m-%Y")
-        file_path = 'data_final'
-        file_name = 'world_data.csv'
         blob = bucket.blob(f"{current_date}/{file_name}")
         blob.upload_from_filename(f"{file_path}/{file_name}")
-        logger.info(f"Data has been successfully loaded to the storage")
+        logger.info(f"Data has been successfully loaded to Firebase Storage")
     except Exception as e:
         logger.error(f"An error occurred: {e}")
         raise
